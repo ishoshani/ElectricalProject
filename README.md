@@ -10,8 +10,9 @@ This project demonstrates how you could use AWS resources to set up a simple ele
 2. install both the AWS CLI and the SAM cli.
 3. From you amazon portal, get a user access key with the needed permissions to make all the required resources. You can do this with the root access, but it is not recommended.
 4. run aws configure to set up your account. You'll need your access key, secret, and region.
-5. run sam build
-6. run sam deploy, you'll get a test api-gateway to start testing from!
+5. in template, replace the variable alertEmail with some email you can use to test the SNS queue.
+6. run sam build
+7. run sam deploy, you'll get a test api-gateway to start testing from!
 
 ## Assumptions:
 1. Each user has exactly one property they are tracking. 

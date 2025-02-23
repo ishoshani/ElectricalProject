@@ -44,6 +44,7 @@ Resources:
         Variables:
           UserPool: !Ref ElectricalUserPool
           ClientId: !Ref ElecCognitoUserPoolClient
+          AlertEmail: someemail@gmail.com
       Events:
         Api:
           Type: Api
@@ -378,7 +379,7 @@ Resources:
     Properties:
       Protocol: email
       TopicArn: !Ref AlertTopic
-      Endpoint: idoshoshoshani@gmail.com
+      Endpoint: !Ref AlertEmail
 
 Outputs:
   WebEndpoint:
@@ -389,3 +390,7 @@ Globals:
   Function:
     LoggingConfig:
       LogFormat: JSON
+  Variables:
+    AlertEmail:
+      Description: Email address to receive alerts
+      Value: "SomeEmail@gmail.com"
