@@ -1,0 +1,301 @@
+openapi: 3.0.0
+info:
+  title: Sample API
+  description: API for example electrical data project
+  version: 0.0.0
+
+
+paths:
+  /auth/signup:
+    post:
+      summary: Signs up a User
+      description: Takes in initial user data to set up an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "abs123@gmail.com"
+                password:
+                  type: string
+                  example: "password"
+                name:
+                  type: string
+                  example: "John Doe"
+      
+      responses:
+        "201":
+          description: on successful add, returns true.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "User added successfully"
+        "500":
+          description: on failure, an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "User already exists"
+  
+  /auth/verify:
+    post:
+      summary: Verifies a User
+      description: Takes in a verification token to verify a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "abc123@gmail.com"
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        "200":
+          description: on successful verification, returns true.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "User verified successfully"
+        "500":
+          description: on failure, an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "User not found"
+      
+  /auth/login:
+    post:
+      summary: Logs in a user
+      description: takes in user credential to return a login token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "abc123"
+                password:
+                  type: string
+                  example: "password"
+      responses:
+        "200":
+          description: on successful login, return a login token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: 
+                    type: string
+                    example: "eyJhbGciOi..."
+        "500":
+            description: on failure, an error.
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    message: 
+                      type: string
+                      example: "User not found"
+
+
+  /energy/input:
+    post:
+      summary: Manual Energy
+      description: Takes in a user token, as well as manual energy token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  example: "abc123"
+                date:
+                  type: string
+                  example: "01/01/2021"
+                kw:
+                  type: number
+                  example: 12
+      responses:
+        "201":
+          description: on success, return total entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "usage added successfully"
+        "500":
+          description: on failure, an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "something went wrong"
+  /energy/upload:
+    post:
+      summary: Bulk Energy
+      description: Takes in a user id and a pre-signed url for a csv of energy usage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  example: "abc123"
+                file:
+                  type: string
+                  example: "https://s3.amazonaws.com/..."
+      responses:
+        "201":
+          description: on success, return number of processed rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "3 entries added"
+        "500":
+          description: on failure, an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "something went wrong"
+  /energy/history:
+    get:
+      summary: fetch History
+      description: uses id, start date, and end date to return energy usage history
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: user id
+          example: "abc123"
+        - in: query
+          name: startDate
+          schema:
+            type: string
+          required: true
+          description: start date
+          example: "01/01/2021"
+        - in: query
+          name: endDate
+          schema:
+            type: string
+          required: true
+          description: end date
+          example: "01/31/2021"
+      responses:
+        "200":
+          description: on success, returns an array of the energy entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date:
+                      type: string
+                      example: "01/01/2021"
+                    usage:
+                      type: number
+                      example: 12
+        "500":
+          description: on failure, an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "Could not retrieve entries"
+               
+  /energy/alert:
+    post:
+      summary: set Alert
+      description: Takes in a user token and a threshold, sets an alert when threshold is breached
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  example: "abc123"
+                threshold:
+                  type: number
+                  example: 100
+      responses:
+        "201":
+          description: on success, returns alert object generated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "alert set"
+        "500":
+          description: on failure, an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: 
+                    type: string
+                    example: "something went wrong"
+

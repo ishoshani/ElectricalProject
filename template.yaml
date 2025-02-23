@@ -1,0 +1,391 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  ElectricalWriteLambda
+Transform:
+- AWS::Serverless-2016-10-31
+
+# Resources declares the AWS resources that you want to include in the stack
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html
+Resources:
+  # Each Lambda function is defined by properties:
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+
+  ElecApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors: "'*'"
+      Auth:
+        DefaultAuthorizer: ElecPoolAuthorizer
+        Authorizers:
+          ElecPoolAuthorizer:
+            UserPoolArn: !GetAtt ElectricalUserPool.Arn
+
+  # This is the Lambda for signing up for the service:
+  signUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/authHandler.signUpHandler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple signup Handler.
+      Policies:
+       - Version: '2012-10-17'
+         Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+              Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ElectricalUserPool}
+
+      Environment:
+        Variables:
+          UserPool: !Ref ElectricalUserPool
+          ClientId: !Ref ElecCognitoUserPoolClient
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/signup
+            Method: POST
+            
+            
+
+  verifyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/authHandler.verifyHandler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple verify Handler.
+      Policies:
+       - Version: '2012-10-17'
+         Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminConfirmSignUp
+              Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ElectricalUserPool}
+
+      Environment:
+        Variables:
+          UserPool: !Ref ElectricalUserPool
+          ClientId: !Ref ElecCognitoUserPoolClient
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/verify
+            Method: POST
+
+  ## and the login function
+  loginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/authHandler.loginHandler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple signup Handler.
+      Policies:
+      - Version: '2012-10-17'
+        Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminInitiateAuth
+                - cognito-idp:AdminRespondToAuthChallenge
+              Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ElectricalUserPool}
+ 
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          UserPool: !Ref ElectricalUserPool
+          ClientName: !Ref ElecCognitoUserPoolClient
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /auth/login
+            Method: POST
+
+  # This is a Lambda function config associated with the source code: put-item.js
+  inputEntryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/inputEntry.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP post method to add one item to
+        a DynamoDB table.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the SampleTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref UsageTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref AlertTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          UsageTableName: !Ref UsageTable
+          AlertTableName: !Ref AlertTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ElecApi
+            Path: /energy/input
+            Method: POST
+
+    # lambda for bulk upload
+  uploadEntryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/inputBulk.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP post method to add multiple items to
+        a DynamoDB table.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the SampleTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref UsageTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref AlertTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          UsageTableName: !Ref UsageTable
+          AlertTableName: !Ref AlertTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ElecApi
+            Path: /energy/upload
+            Method: POST
+
+            
+  historyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/getHistory.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP get method to get all items from
+        a DynamoDB table.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the SampleTable
+      - DynamoDBReadPolicy:
+          TableName: !Ref UsageTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          UsageTableName: !Ref UsageTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ElecApi
+            Path: /energy/history
+            Method: GET
+            RequestParameters:
+              - method.request.querystring.id: 
+                  Required: true
+              - method.request.querystring.startDate:
+                  Required: false
+              - method.request.querystring.endDate:
+                  Required: false
+  inputAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/inputAlert.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP post method to set an alert for a user.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the SampleTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref AlertTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          AlertTableName: !Ref AlertTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ElecApi
+            Path: /energy/alerts
+            Method: POST
+
+  triggerAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/triggerAlert.AlertTriggerHandler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: this function triggers when the UserTable has a record added, and checks the alert for threshold.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the SampleTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref AlertTable
+      - DynamoDBReadPolicy:
+          TableName: !Ref UsageTable
+      - SNSPublishMessagePolicy:
+          TopicName: !Ref AlertTopic
+          
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          AlertTableName: !Ref AlertTable
+          AlertTopicName: !Ref AlertTopic
+      Events:
+        DDBEvent:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt UsageTable.StreamArn
+            BatchSize: 10
+            StartingPosition: TRIM_HORIZON
+            Enabled: true
+
+            
+            
+  ElectricalUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ElectricalUserPool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: false
+        - Name: name
+          Required: true
+          Mutable: true
+
+  ElecCognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref ElectricalUserPool
+      ClientName: ElecCognitoUserPoolClient
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - USER_PASSWORD_AUTH
+
+  UsageTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UsageTable
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+  AlertTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: AlertTable
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: threshold
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: threshold
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName:
+        Ref: ApplicationResourceGroup
+      AutoConfigurationEnabled: 'true'
+
+  # SNS queue for alerts
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: AlertTopic
+      TopicName: AlertTopic
+  AlertSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref AlertTopic
+      Endpoint: idoshoshoshani@gmail.com
+
+Outputs:
+  WebEndpoint:
+    Description: API Gateway endpoint URL for Prod stage
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    LoggingConfig:
+      LogFormat: JSON
